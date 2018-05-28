@@ -1,0 +1,1 @@
+The Movie DB's API Key must be assigned to TMDB_API_KEY in net.tuanpham.popularmovies.utils.TMDbUtils
