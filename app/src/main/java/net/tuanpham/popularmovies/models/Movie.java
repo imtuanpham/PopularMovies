@@ -5,18 +5,20 @@ package net.tuanpham.popularmovies.models;
     @since: 2018-05-22 21:50:10
  */
 
-import android.os.Parcel;
-import android.os.Parcelable;
-
+import java.util.ArrayList;
 import java.util.Date;
 
-public class Movie implements Parcelable{
+public class Movie {
     private int id;
     private String originalTitle;
     private String posterPath;
     private String overview;
     private double voteAverage;
     private Date releaseDate;
+    private boolean isFavorite;
+
+    private ArrayList<Review> reviews;
+    private ArrayList<Video> videos;
 
     public int getId() {
         return id;
@@ -42,6 +44,32 @@ public class Movie implements Parcelable{
         return releaseDate;
     }
 
+    public void setReviews(ArrayList<Review> reviews) {
+        this.reviews = reviews;
+    }
+
+    public String getReviews() {
+        if(reviews == null) return "";
+
+        String str = "";
+        for (Review review: reviews) {
+            str = str + review.author + "\n" + review.content + "\n\n";
+        }
+        return str;
+    }
+
+    public void setVideos(ArrayList<Video> videos) {
+        this.videos = videos;
+    }
+
+    public ArrayList<Video> getVideos() {
+        return videos;
+    }
+
+    public boolean isFavorite() {
+        return isFavorite;
+    }
+
     public Movie(int vId, String vOriginalTitle, String vPosterPath, String vOverview, double vVoteAverage, Date vReleaseDate) {
         this.id = vId;
         this.originalTitle = vOriginalTitle;
@@ -51,57 +79,121 @@ public class Movie implements Parcelable{
         this.releaseDate = vReleaseDate;
     }
 
-    private Movie(Parcel in){
-        super();
-        this.readFromParcel(in);
-    }
-
-    @Override
-    public int describeContents() {
-        return 0;
+    public void setFavorite(boolean favorite) {
+        isFavorite = favorite;
     }
 
     public String toString() {
-        return String.valueOf(this.id)
+        String str = String.valueOf(this.id)
                 + "--" + this.originalTitle
                 + "--" + this.posterPath
                 + "--" + this.overview
                 + "--" + String.valueOf(this.voteAverage)
-                + "--" + this.releaseDate.toString();
-    }
+                + "--" + this.releaseDate.toString()
+                + "--" + String.valueOf(this.isFavorite);
 
-    public void readFromParcel(Parcel in) {
-        this.id = in.readInt();
-        this.originalTitle = in.readString();
-        this.posterPath = in.readString();
-        this.overview = in.readString();
-        this.voteAverage = in.readDouble();
-        // Read Long value and convert to date
-        this.releaseDate = new Date(in.readLong());
-    }
-
-    @Override
-    public void writeToParcel(Parcel parcel, int i) {
-        parcel.writeInt(id);
-        parcel.writeString(originalTitle);
-        parcel.writeString(posterPath);
-        parcel.writeString(overview);
-        parcel.writeDouble(voteAverage);
-        // Write long value of Date
-        parcel.writeLong(releaseDate.getTime());
-    }
-
-
-
-    public final static Creator<Movie> CREATOR = new Creator<Movie>() {
-        @Override
-        public Movie createFromParcel(Parcel parcel) {
-            return new Movie(parcel);
+        if(this.reviews != null) {
+            str = str + this.reviews.toString();
         }
 
-        @Override
-        public Movie[] newArray(int i) {
-            return new Movie[i];
+        return str;
+    }
+
+    public static class Review {
+        private String author;
+        private String content;
+
+        public String getAuthor() {
+            return author;
         }
-    };
+
+        public String getContent() {
+            return content;
+        }
+
+
+        public Review(String vAuthor, String vContent) {
+            this.author = vAuthor;
+            this.content = vContent;
+        }
+
+        public String toString() {
+            return this.author
+                    + "--" + this.content;
+        }
+    }
+
+    /*
+
+    "key":"6ZfuNTqbHE8",
+    "name":"Official Trailer",
+    "site":"YouTube",
+    "size":1080,
+    "type":"Trailer"
+     */
+
+    public static class Video {
+
+        private String key;
+        private String name;
+        private String site;
+        private int size;
+        private String type;
+
+        public Video(String key, String name, String site, int size, String type) {
+            this.key = key;
+            this.name = name;
+            this.site = site;
+            this.size = size;
+            this.type = type;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public String getSite() {
+            return site;
+        }
+
+        public int getSize() {
+            return size;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public void setKey(String key) {
+            this.key = key;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public void setSite(String site) {
+            this.site = site;
+        }
+
+        public void setSize(int size) {
+            this.size = size;
+        }
+
+        public void setType(String type) {
+            this.type = type;
+        }
+
+        public String toString() {
+            return this.key
+                    + "--" + this.name
+                    + "--" + this.site
+                    + "--" + this.size
+                    + "--" + this.type;
+        }
+    }
 }

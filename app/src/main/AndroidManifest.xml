@@ -30,6 +30,18 @@
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value=".activities.MainActivity" />
         </activity>
+
+
+        <!-- Our ContentProvider -->
+        <provider
+            android:name=".data.MovieProvider"
+            android:authorities="@string/content_authority"
+            android:exported="false"/>
+
+        <!--This is required for immediate syncs -->
+        <service
+            android:name=".sync.MovieSyncIntentService"
+            android:exported="false" />
     </application>
 
 </manifest>

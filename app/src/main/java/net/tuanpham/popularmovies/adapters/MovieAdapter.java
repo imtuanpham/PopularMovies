@@ -4,66 +4,50 @@ package net.tuanpham.popularmovies.adapters;
     @author: Tuan Pham
     @since: 2018-05-23 20:54:06
     Based on https://github.com/udacity/android-custom-arrayadapter
+
+    @since: 2018-06-03 21:32:39
+    Switched from ArrayAdapter to CursorAdapter
  */
 
 import android.app.Activity;
 import android.content.Context;
+import android.database.Cursor;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ArrayAdapter;
+import android.widget.CursorAdapter;
 import android.widget.ImageView;
 
 import com.squareup.picasso.Picasso;
 import net.tuanpham.popularmovies.R;
-import net.tuanpham.popularmovies.models.Movie;
+import net.tuanpham.popularmovies.data.MovieContract;
 import net.tuanpham.popularmovies.utils.TMDbUtils;
 
-import java.util.List;
-
-public class MovieAdapter extends ArrayAdapter<Movie> {
+public class MovieAdapter extends CursorAdapter {
     private static final String LOG_TAG = MovieAdapter.class.getSimpleName();
 
-    /**
-     *
-     * @param context The current context used to inflate the layout file.
-     */
-    public MovieAdapter(Activity context) {
-        super(context, 0);
+    private Cursor mCursor;
+
+    public MovieAdapter(Activity context, Cursor cursor) {
+        super(context, cursor);
     }
 
-    /**
-     *
-     * @param position    The AdapterView position
-     * @param convertView The recycled view to populate
-     * @param parent The parent ViewGroup that is used for inflation.
-     * @return The View for the position in the AdapterView.
-     */
     @Override
-    public View getView(int position, View convertView, ViewGroup parent) {
-        // Gets the Movie object from the ArrayAdapter at the appropriate position
-        Movie movie = getItem(position);
-
-        Context context = getContext();
-
-        if (convertView == null) {
-            convertView = LayoutInflater
-                                .from(context)
-                                .inflate(R.layout.movie_item, parent, false);
-        }
-
-        ImageView movieImageView = (ImageView) convertView.findViewById(R.id.iv_movie);
-
-        Picasso.with(getContext())
-                .load(TMDbUtils.TMDB_MOVIES_IMAGE_BASE_URL + movie.getPosterPath())
-                .into(movieImageView);
-
-        return convertView;
+    public View newView(Context context, Cursor cursor, ViewGroup parent) {
+        return LayoutInflater
+                .from(context)
+                .inflate(R.layout.movie_item, parent, false);
     }
 
-    public void setMovieList(List<Movie> movieList) {
-        this.clear();
-        this.addAll(movieList);
-        notifyDataSetChanged();
+    @Override
+    public void bindView(View view, Context context, Cursor cursor) {
+
+        ImageView movieImageView = (ImageView) view.findViewById(R.id.iv_movie);
+
+        String posterPath = cursor.getString(cursor.getColumnIndexOrThrow(MovieContract.MovieEntry.COLUMN_MOVIE_POSTER_PATH));
+
+        Picasso.with(context)
+                .load(TMDbUtils.TMDB_MOVIES_IMAGE_BASE_W185_URL + posterPath)
+                .into(movieImageView);
     }
 }

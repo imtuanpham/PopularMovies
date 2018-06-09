@@ -1,17 +1,18 @@
 package net.tuanpham.popularmovies.activities;
 /*
     @author: Tuan Pham
-    @since: 2018-05-28 12:25:12
+    @since: 2018-06-03 21:09:33
  */
 
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
+import android.net.Uri;
 import android.support.v4.app.LoaderManager;
-import android.support.v4.content.AsyncTaskLoader;
+import android.support.v4.content.CursorLoader;
 import android.support.v4.content.Loader;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.text.TextUtils;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -24,23 +25,21 @@ import android.widget.TextView;
 
 import net.tuanpham.popularmovies.R;
 import net.tuanpham.popularmovies.adapters.MovieAdapter;
-import net.tuanpham.popularmovies.models.Movie;
-import net.tuanpham.popularmovies.utils.JsonUtils;
-import net.tuanpham.popularmovies.utils.TMDbUtils;
+import net.tuanpham.popularmovies.data.MovieContract;
+import net.tuanpham.popularmovies.data.MovieProvider;
+import net.tuanpham.popularmovies.sync.MovieSyncUtils;
 
-import java.net.URL;
-import java.util.ArrayList;
-
-public class MainActivity extends AppCompatActivity implements LoaderManager.LoaderCallbacks<ArrayList<Movie>> {
+public class MainActivity extends AppCompatActivity implements
+        LoaderManager.LoaderCallbacks<Cursor> {
 
     private final String LOG_TAG = MainActivity.class.getSimpleName();
 
-    private static final int TMDB_DATA_LOADER = 222;
+    private static final int MOVIE_DATA_LOADER = 222;
 
-    private MovieAdapter movieAdapter;
-    private ArrayList<Movie> movieList;
+    private MovieAdapter mMovieAdapter;
 
-    private String movieOrder = TMDbUtils.TMDB_MOVIES_ORDER_POPULAR;
+    private String mMovieList;
+    private Uri mMovieUri;
 
     private GridView mGridView;
     private TextView mErrorMessage;
@@ -48,151 +47,125 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        Log.d(LOG_TAG, "onCreate");
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-//        Log.d(LOG_TAG, "onCreate");
-
         mErrorMessage = (TextView) findViewById(R.id.tv_error_message);
-        mLoadingIndicator = (ProgressBar) findViewById(R.id.pb_loading_indicator);
+        mLoadingIndicator = (ProgressBar) findViewById(R.id.pb_loading_main);
 
-        movieAdapter = new MovieAdapter(this);
+        mMovieAdapter = new MovieAdapter(this, null);
 
         // Get a reference to the ListView, and attach this adapter to it.
         mGridView = (GridView) findViewById(R.id.gv_movies);
-        mGridView.setAdapter(movieAdapter);
+        mGridView.setAdapter(mMovieAdapter);
 
         mGridView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
-                Movie clickedMovie = movieAdapter.getItem(i);
+                long movieId = mMovieAdapter.getItemId(i);
 
                 Context context = getApplicationContext();
                 Class destinationClass = DetailActivity.class;
                 Intent intentToStartDetailActivity = new Intent(context, destinationClass);
-                intentToStartDetailActivity.putExtra(Intent.EXTRA_TEXT, clickedMovie);
+                intentToStartDetailActivity.putExtra(MovieContract.MovieEntry.COLUMN_MOVIE_ID, movieId);
                 startActivity(intentToStartDetailActivity);
             }
         });
 
-        if(movieList != null) return;
-
-        if(savedInstanceState == null || !savedInstanceState.containsKey("movies")) {
-            // if cache doesn't exist, load movies from API
-            Log.d(LOG_TAG, "Loading Movies from API...");
-            loadMoviesFromApi(movieOrder);
+        if(savedInstanceState != null && savedInstanceState.containsKey(MovieProvider.MOVIE_LIST)) {
+            // retrieve movie list from saved state
+            String movieList = savedInstanceState.getString(MovieProvider.MOVIE_LIST);
+            loadMovies(movieList);
         } else {
-            Log.d(LOG_TAG, "Loading Movies from instance state...");
-            loadMoviesFromInstanceState(savedInstanceState);
+            // default to the popular list
+            loadMovies(MovieProvider.MOVIE_LIST_POPULAR);
         }
+
+        // sync movie data if the app is first opened
+        MovieSyncUtils.initialize(this);
     }
 
     @Override
     public void onSaveInstanceState(Bundle outState) {
-        Log.d(LOG_TAG, "Saving Instance State...");
-        outState.putParcelableArrayList("movies", movieList);
+        outState.putCharSequence(MovieProvider.MOVIE_LIST, mMovieList);
         super.onSaveInstanceState(outState);
     }
 
-    private void loadMoviesFromInstanceState(Bundle savedInstanceState) {
-        movieList = savedInstanceState.getParcelableArrayList("movies");
-        if(movieList == null || movieList.isEmpty()) {
-            showErrorMessage();
-            Log.d(LOG_TAG, "Invalid movie list");
-        } else {
-            movieAdapter.setMovieList(movieList);
-        }
-    }
+    private void loadMovies(String list) {
 
-    private void loadMoviesFromApi(String order) {
-        Bundle queryBundle = new Bundle();
-        queryBundle.putString(TMDbUtils.TMDB_MOVIES_ORDER, order);
+        mMovieList = list;
+
+        switch (mMovieList) {
+            case MovieProvider.MOVIE_LIST_POPULAR: {
+                mMovieUri = MovieContract.CONTENT_URI_POPULAR;
+                this.setTitle(R.string.action_most_popular);
+                break;
+            }
+            case MovieProvider.MOVIE_LIST_TOP_RATED: {
+                mMovieUri = MovieContract.CONTENT_URI_TOP_RATED;
+                this.setTitle(R.string.action_top_rated);
+                break;
+            }
+            case MovieProvider.MOVIE_LIST_FAVORITE: {
+                mMovieUri = MovieContract.CONTENT_URI_FAVORITE;
+                this.setTitle(R.string.action_favorites);
+                break;
+            }
+
+            default:
+                throw new RuntimeException("Invalid Movie List: " + mMovieList);
+        }
 
         LoaderManager loaderManager = getSupportLoaderManager();
-        Loader<ArrayList<Movie>> movieDataLoader = loaderManager.getLoader(TMDB_DATA_LOADER);
+        Loader<Cursor> movieDataLoader = loaderManager.getLoader(MOVIE_DATA_LOADER);
         if (movieDataLoader == null) {
-            loaderManager.initLoader(TMDB_DATA_LOADER, queryBundle, this);
+            loaderManager.initLoader(MOVIE_DATA_LOADER, null, this);
         } else {
-            loaderManager.restartLoader(TMDB_DATA_LOADER, queryBundle, this);
+            loaderManager.restartLoader(MOVIE_DATA_LOADER, null, this);
         }
     }
 
     @Override
-    public Loader<ArrayList<Movie>> onCreateLoader(int id, final Bundle args) {
+    public Loader<Cursor> onCreateLoader(int loaderId, final Bundle args) {
 
-        class FetchDataAsyncTaskLoader extends AsyncTaskLoader<ArrayList<Movie>> {
+        Log.d(LOG_TAG, "onCreateLoader");
+        mLoadingIndicator.setVisibility(View.VISIBLE);
 
-            private ArrayList<Movie> cachedData;
+        switch (loaderId) {
 
-            public FetchDataAsyncTaskLoader(Context context) {
-                super(context);
-            }
+            case MOVIE_DATA_LOADER:
+                return new CursorLoader(this,
+                        mMovieUri,
+                        MovieContract.MovieEntry.DEFAULT_PROJECTION,
+                        null,
+                        null,
+                        null);
 
-            @Override
-            protected void onStartLoading() {
-
-                if (args == null) {
-                    return;
-                }
-
-                Log.d(LOG_TAG, "onStartLoading");
-
-                if (cachedData == null) {
-                    mLoadingIndicator.setVisibility(View.VISIBLE);
-                    forceLoad();
-                }
-            }
-
-            @Override
-            public ArrayList<Movie> loadInBackground() {
-
-                String order = args.getString(TMDbUtils.TMDB_MOVIES_ORDER);
-
-                if (order == null || TextUtils.isEmpty(order)) {
-                    return null;
-                }
-
-                URL requestUrl = TMDbUtils.buildUrl(order, 1);
-                try {
-                    String jsonResponse = TMDbUtils
-                            .getResponseFromHttpUrl(requestUrl);
-
-                    Log.d(LOG_TAG, jsonResponse);
-
-                    ArrayList<Movie> movieList = JsonUtils.parseMoviesJson(jsonResponse);
-                    return movieList;
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    return null;
-                }
-            }
-
-            @Override
-            public void deliverResult(ArrayList<Movie> data) {
-                cachedData = data;
-                super.deliverResult(data);
-            }
+            default:
+                throw new RuntimeException("Loader Not Implemented: " + loaderId);
         }
-
-        return new FetchDataAsyncTaskLoader(this);
 
     }   // end public Loader
 
     @Override
-    public void onLoadFinished(Loader<ArrayList<Movie>> loader, ArrayList<Movie> data) {
+    public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
+        Log.d(LOG_TAG, "onLoadFinished");
         mLoadingIndicator.setVisibility(View.INVISIBLE);
 
-        if (data == null || data.isEmpty()) {
+        if (data == null || data.getCount() == 0) {
             showErrorMessage();
         } else {
             showMoviesView();
-            movieList = data;
-            movieAdapter.setMovieList(movieList);
+            mMovieAdapter.changeCursor(data);
         }
     }
 
     @Override
-    public void onLoaderReset(Loader<ArrayList<Movie>> loader) {
+    public void onLoaderReset(Loader<Cursor> loader) {
+        Log.d(LOG_TAG, "onLoaderReset");
+        mMovieAdapter.changeCursor(null);
         return;
     }
 
@@ -223,12 +196,17 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
         int id = item.getItemId();
 
         if (id == R.id.action_most_popular) {
-            loadMoviesFromApi(TMDbUtils.TMDB_MOVIES_ORDER_POPULAR);
+            loadMovies(MovieProvider.MOVIE_LIST_POPULAR);
             return true;
         }
 
         if (id == R.id.action_top_rated) {
-            loadMoviesFromApi(TMDbUtils.TMDB_MOVIES_ORDER_TOP_RATED);
+            loadMovies(MovieProvider.MOVIE_LIST_TOP_RATED);
+            return true;
+        }
+
+        if (id == R.id.action_favorites) {
+            loadMovies(MovieProvider.MOVIE_LIST_FAVORITE);
             return true;
         }
 
